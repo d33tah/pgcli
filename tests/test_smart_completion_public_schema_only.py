@@ -475,3 +475,14 @@ def test_join_functions_on_suggests_columns(completer, complete_event):
     assert set(result) == set([
          Completion(text='x', start_position=0, display_meta='column'),
          Completion(text='y', start_position=0, display_meta='column')])
+    
+    
+def test_learn_keywords(completer, complete_event):
+    sql = 'CREATE VIEW v AS SELECT 1'
+    completer.extend_query_history(sql)
+    assert completer.keyword_counter['VIEW'] == 1
+
+    sql = 'create v'
+    completions = completer.get_completions(
+        Document(text=sql, cursor_position=len(sql)), complete_event)
+    assert completions[0].text == 'VIEW'
