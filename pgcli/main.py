@@ -410,7 +410,8 @@ class PGCli(object):
                     logger.debug('Search path: %r', self.completer.search_path)
 
                 # Allow PGCompleter to learn user's preferred keywords, etc.
-                self.completer.extend_query_history(document.text)
+                with self._completer_lock:
+                    self.completer.extend_query_history(document.text)
 
                 query = Query(document.text, successful, mutating)
                 self.query_history.append(query)
