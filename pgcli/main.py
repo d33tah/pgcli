@@ -285,9 +285,17 @@ class PGCli(object):
                                        ])
         history_file = self.config['main']['history_file']
         with self._completer_lock:
-            buf = PGBuffer(always_multiline=self.multi_line, completer=self.completer,
-                    history=FileHistory(os.path.expanduser(history_file)),
-                    complete_while_typing=Always())
+            history = FileHistory(os.path.expanduser(history_file))
+            buf = PGBuffer(
+                always_multiline=self.multi_line, completer=self.completer,
+                history=history, complete_while_typing=Always())
+
+            # Load history into pgcompleter so it can learn user preferences
+            n_max_recent = 100
+            n_recent = min(n_max_recent, len(history))
+            if n_recent:
+                for recent in history[-n_recent:]:
+                    self.completer.extend_query_history(recent)
 
             application = Application(style=style_factory(self.syntax_style, self.cli_style),
                                       layout=layout, buffer=buf,
