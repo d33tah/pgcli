@@ -8,7 +8,7 @@ from prompt_toolkit.completion import Completer, Completion
 from .packages.sqlcompletion import suggest_type
 from .packages.parseutils import last_word
 from .packages.pgliterals.main import get_literals
-from .packages.keyword_counter import KeywordCounter
+from .packages.prioritization import PrevalenceCounter
 from .config import load_config
 
 try:
@@ -31,7 +31,7 @@ class PGCompleter(Completer):
         super(PGCompleter, self).__init__()
         self.smart_completion = smart_completion
         self.pgspecial = pgspecial
-        self.keyword_counter = KeywordCounter(self.keywords)
+        self.prioritizer = PrevalenceCounter(self.keywords)
 
         self.reserved_words = set()
         for x in self.keywords:
@@ -154,7 +154,7 @@ class PGCompleter(Completer):
             self.all_completions.add(type_name)
 
     def extend_query_history(self, text):
-        self.keyword_counter.update(text)
+        self.prioritizer.update(text)
 
     def set_search_path(self, search_path):
         self.search_path = self.escaped_names(search_path)
@@ -512,6 +512,6 @@ class PGCompleter(Completer):
 
     def _keyword_sort_key(self, keyword_completion):
         keyword = keyword_completion.text
-        return self.keyword_counter[keyword]
+        return self.prioritizer[keyword]
 
 

@@ -480,7 +480,7 @@ def test_join_functions_on_suggests_columns(completer, complete_event):
 def test_learn_keywords(completer, complete_event):
     sql = 'CREATE VIEW v AS SELECT 1'
     completer.extend_query_history(sql)
-    assert completer.keyword_counter['VIEW'] == 1
+    assert completer.prioritizer['VIEW'] == 1
 
     sql = 'create v'
     completions = completer.get_completions(

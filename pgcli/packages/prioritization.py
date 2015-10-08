@@ -2,7 +2,7 @@ import re
 from collections import defaultdict
 
 
-class KeywordCounter(object):
+class PrevalenceCounter(object):
     def __init__(self, keywords):
         self.regexes = dict((kw, _compile_regex(kw)) for kw in keywords)
         self.counts = defaultdict(int)

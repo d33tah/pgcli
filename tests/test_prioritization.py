@@ -1,9 +1,9 @@
-from pgcli.packages.keyword_counter import KeywordCounter
+from pgcli.packages.prioritization import PrevalenceCounter
 
 
-def test_keyword_counter():
+def test_prevalence_counter():
     keywords = ['SELECT', 'GROUP BY']
-    counter = KeywordCounter(keywords)
+    counter = PrevalenceCounter(keywords)
     sql = '''SELECT * FROM foo WHERE bar GROUP BY baz;
              select * from foo;
              SELECT * FROM foo WHERE bar GROUP
