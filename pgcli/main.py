@@ -251,8 +251,6 @@ class PGCli(object):
         logger = self.logger
         original_less_opts = self.adjust_less_opts()
 
-        self.refresh_completions()
-
         def set_vi_mode(value):
             self.vi_mode = value
 
@@ -290,13 +288,6 @@ class PGCli(object):
                 always_multiline=self.multi_line, completer=self.completer,
                 history=history, complete_while_typing=Always())
 
-            # Load history into pgcompleter so it can learn user preferences
-            n_max_recent = 100
-            n_recent = min(n_max_recent, len(history))
-            if n_recent:
-                for recent in history[-n_recent:]:
-                    self.completer.extend_query_history(recent)
-
             application = Application(style=style_factory(self.syntax_style, self.cli_style),
                                       layout=layout, buffer=buf,
                                       key_bindings_registry=key_binding_manager.registry,
@@ -304,6 +295,8 @@ class PGCli(object):
                                       ignore_case=True)
             self.cli = CommandLineInterface(application=application,
                                        eventloop=create_eventloop())
+
+        self.refresh_completions(history)
 
         try:
             while True:
@@ -437,9 +430,10 @@ class PGCli(object):
 
         return less_opts
 
-    def refresh_completions(self):
-        self.completion_refresher.refresh(self.pgexecute, self.pgspecial,
-                                          self._on_completions_refreshed)
+    def refresh_completions(self, history=None):
+        self.completion_refresher.refresh(
+            self.pgexecute, self.pgspecial, self._on_completions_refreshed,
+            history=history)
         return [(None, None, None,
                 'Auto-completion refresh started in the background.')]
 
