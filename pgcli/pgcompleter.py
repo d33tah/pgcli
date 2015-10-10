@@ -167,7 +167,7 @@ class PGCompleter(Completer):
                            'datatypes': {}}
         self.all_completions = set(self.keywords + self.functions)
 
-    def find_matches(self, text, collection, start_only=False, fuzzy=True,
+    def find_matches(self, text, collection, mode='name',
                      meta=None, meta_collection=None):
         """Find completion matches for the given text.
 
@@ -175,9 +175,9 @@ class PGCompleter(Completer):
         completions, find completions matching the last word of the
         text.
 
-        If `start_only` is True, the text will match an available
-        completion only at the beginning. Otherwise, a completion is
-        considered a match if the text appears anywhere within it.
+        `mode` can be either 'name', or 'keyword'
+            'name': fuzzy matching
+            `keyword`: start only matching
 
         yields prompt_toolkit Completion instances for any matches found
         in the collection of available completions.
@@ -185,6 +185,11 @@ class PGCompleter(Completer):
         """
 
         text = last_word(text, include='most_punctuations').lower()
+
+        if mode == 'name':
+            fuzzy = True
+        else:
+            fuzzy = False
 
         # Construct a `_match` function for either fuzzy or non-fuzzy matching
         # The match function returns a 2-tuple used for sorting the matches,
@@ -198,7 +203,7 @@ class PGCompleter(Completer):
                 if r:
                     return len(r.group()), r.start()
         else:
-            match_end_limit = len(text) if start_only else None
+            match_end_limit = len(text)
 
             def _match(item):
                 match_point = item.lower().find(text, 0, match_end_limit)
@@ -236,7 +241,7 @@ class PGCompleter(Completer):
         # 'word_before_cursor'.
         if not smart_completion:
             return self.find_matches(word_before_cursor, self.all_completions,
-                                     start_only=True, fuzzy=False)
+                                     mode='keyword')
 
         completions = []
         suggestions = suggest_type(document.text, document.text_before_cursor)
@@ -284,8 +289,7 @@ class PGCompleter(Completer):
                     # matching
                     predefined_funcs = self.find_matches(word_before_cursor,
                                                          self.functions,
-                                                         start_only=True,
-                                                         fuzzy=False,
+                                                         mode='keyword',
                                                          meta='function')
                     completions.extend(predefined_funcs)
 
@@ -342,9 +346,7 @@ class PGCompleter(Completer):
 
             elif suggestion['type'] == 'keyword':
                 keywords = self.find_matches(word_before_cursor, self.keywords,
-                                             start_only=True,
-                                             fuzzy=False,
-                                             meta='keyword')
+                                             mode='keyword', meta='keyword')
                 
                 # Sort keywords by how often user uses them
                 keywords = sorted(keywords, key=self._keyword_sort_key,
@@ -361,8 +363,7 @@ class PGCompleter(Completer):
                 desc = [commands[cmd].description for cmd in cmd_names]
 
                 special = self.find_matches(word_before_cursor, cmd_names,
-                                            start_only=True,
-                                            fuzzy=False,
+                                            start_only=True, mode='keyword',
                                             meta_collection=desc)
 
                 completions.extend(special)
@@ -378,14 +379,14 @@ class PGCompleter(Completer):
                 if not suggestion['schema']:
                     # Also suggest hardcoded types
                     types = self.find_matches(word_before_cursor,
-                                              self.datatypes, start_only=True,
-                                              fuzzy=False, meta='datatype')
+                                              self.datatypes, mode='keyword',
+                                              meta='datatype')
                     completions.extend(types)
 
             elif suggestion['type'] == 'namedquery':
                 queries = self.find_matches(
                     word_before_cursor, NamedQueries.instance.list(),
-                    start_only=False, fuzzy=True, meta='named query')
+                    meta='named query')
                 completions.extend(queries)
 
         return completions
