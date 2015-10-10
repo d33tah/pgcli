@@ -35,7 +35,7 @@ class PGCompleter(Completer):
         super(PGCompleter, self).__init__()
         self.smart_completion = smart_completion
         self.pgspecial = pgspecial
-        self.prioritizer = PrevalenceCounter(self.keywords)
+        self.prioritizer = PrevalenceCounter()
 
         self.reserved_words = set()
         for x in self.keywords:
