@@ -10,7 +10,10 @@ def test_prevalence_counter():
              BY baz'''
     counter.update(sql)
 
-    counts = [counter[k] for k in keywords]
-    assert counts == [3, 2]
-    assert counter['FROM'] == 0
+    kw_counts = [counter.keyword_count(x) for x in keywords]
+    assert kw_counts == [3, 2]
+    assert counter.keyword_count('FROM') == 0
 
+    names = ['foo', 'bar', 'baz']
+    name_counts = [counter.name_count(x) for x in names]
+    assert name_counts == [3, 2, 2]
