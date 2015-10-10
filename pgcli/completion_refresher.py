@@ -75,7 +75,7 @@ class CompletionRefresher(object):
         n_recent = history and min(n_max_recent, len(history))
         if n_recent:
             for recent in history[-n_recent:]:
-                completer.extend_query_history(recent)
+                completer.extend_query_history(recent, is_init=True)
 
         for callback in callbacks:
             callback(completer)

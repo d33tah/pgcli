@@ -171,8 +171,13 @@ class PGCompleter(Completer):
             meta[schema][type_name] = None
             self.all_completions.add(type_name)
 
-    def extend_query_history(self, text):
-        self.prioritizer.update(text)
+    def extend_query_history(self, text, is_init=False):
+        if is_init:
+            # During completer initialization, only load keyword preferences,
+            # not names
+            self.prioritizer.update_keywords(text)
+        else:
+            self.prioritizer.update(text)
 
     def set_search_path(self, search_path):
         self.search_path = self.escaped_names(search_path)

@@ -11,12 +11,16 @@ class PrevalenceCounter(object):
         self.name_counts = defaultdict(int)
 
     def update(self, text):
-        # Count identifiers
+        self.update_keywords(text)
+        self.update_names(text)
+
+    def update_names(self, text):
         for parsed in sqlparse.parse(text):
             for token in parsed.flatten():
                 if token.ttype in Name:
                     self.name_counts[token.value] += 1
 
+    def update_keywords(self, text):
         # Count keywords. Can't rely for sqlparse for this, because it's
         # database agnostic
         for keyword, regex in self.keyword_regexs.items():
