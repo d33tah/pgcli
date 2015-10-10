@@ -3,6 +3,7 @@ import logging
 import re
 import itertools
 import operator
+from collections import namedtuple
 from pgspecial.namedqueries import NamedQueries
 from prompt_toolkit.completion import Completer, Completion
 from .packages.sqlcompletion import suggest_type
@@ -20,6 +21,9 @@ except ImportError:
 _logger = logging.getLogger(__name__)
 
 NamedQueries.instance = NamedQueries.from_config(load_config('~/.pgclirc'))
+
+
+Match = namedtuple('Match', ['completion', 'priority'])
 
 
 class PGCompleter(Completer):
@@ -188,12 +192,16 @@ class PGCompleter(Completer):
 
         if mode == 'name':
             fuzzy = True
+            priority_func = lambda x: self.prioritizer.name_count(x)
         else:
             fuzzy = False
-
+            priority_func = lambda x: self.prioritizer.keyword_count(x)
+            
         # Construct a `_match` function for either fuzzy or non-fuzzy matching
         # The match function returns a 2-tuple used for sorting the matches,
         # or None if the item doesn't match
+        # Note: higher priority values mean more important, so use negative
+        # signs to flip the direction of the tuple
         if fuzzy:
             regex = '.*?'.join(map(re.escape, text))
             pat = re.compile('(%s)' % regex)
@@ -201,14 +209,14 @@ class PGCompleter(Completer):
             def _match(item):
                 r = pat.search(self.unescape_name(item))
                 if r:
-                    return len(r.group()), r.start()
+                    return -len(r.group()), -r.start()
         else:
             match_end_limit = len(text)
 
             def _match(item):
                 match_point = item.lower().find(text, 0, match_end_limit)
                 if match_point >= 0:
-                    return match_point, 0
+                    return -match_point, 0
 
         if meta_collection:
             # Each possible completion in the collection has a corresponding
@@ -218,7 +226,8 @@ class PGCompleter(Completer):
             # All completions have an identical meta
             collection = zip(collection, itertools.repeat(meta))
 
-        completions = []
+        matches = []
+
         for item, meta in collection:
             sort_key = _match(item)
             if sort_key:
@@ -226,11 +235,11 @@ class PGCompleter(Completer):
                     # Truncate meta-text to 50 characters, if necessary
                     meta = meta[:47] + u'...'
 
-                completions.append((sort_key, item, meta))
+                matches.append(Match(
+                    completion=Completion(item, -len(text), display_meta=meta),
+                    priority=(sort_key, priority_func(item))))
 
-        return [Completion(item, -len(text), display_meta=meta)
-                for sort_key, item, meta in sorted(completions)]
-
+        return matches
 
     def get_completions(self, document, complete_event, smart_completion=None):
         word_before_cursor = document.get_word_before_cursor(WORD=True)
@@ -240,10 +249,12 @@ class PGCompleter(Completer):
         # If smart_completion is off then match any word that starts with
         # 'word_before_cursor'.
         if not smart_completion:
-            return self.find_matches(word_before_cursor, self.all_completions,
-                                     mode='keyword')
+            matches = self.find_matches(word_before_cursor, self.all_completions,
+                                        mode='keyword')
+            completions = [m.completion for m in matches]
+            return sorted(completions, key=operator.attrgetter('text'))
 
-        completions = []
+        matches = []
         suggestions = suggest_type(document.text, document.text_before_cursor)
 
         for suggestion in suggestions:
@@ -265,7 +276,7 @@ class PGCompleter(Completer):
 
                 cols = self.find_matches(word_before_cursor, scoped_cols,
                                          meta='column')
-                completions.extend(cols)
+                matches.extend(cols)
 
             elif suggestion['type'] == 'function':
                 if suggestion.get('filter') == 'is_set_returning':
@@ -282,16 +293,15 @@ class PGCompleter(Completer):
 
                 funcs = self.find_matches(word_before_cursor, funcs,
                                           meta='function')
-                completions.extend(funcs)
+                matches.extend(funcs)
 
                 if not suggestion['schema'] and 'filter' not in suggestion:
                     # also suggest hardcoded functions using startswith
                     # matching
-                    predefined_funcs = self.find_matches(word_before_cursor,
-                                                         self.functions,
-                                                         mode='keyword',
-                                                         meta='function')
-                    completions.extend(predefined_funcs)
+                    predefined_funcs = self.find_matches(
+                        word_before_cursor, self.functions, mode='keyword',
+                        meta='function')
+                    matches.extend(predefined_funcs)
 
             elif suggestion['type'] == 'schema':
                 schema_names = self.dbmetadata['tables'].keys()
@@ -305,7 +315,7 @@ class PGCompleter(Completer):
                 schema_names = self.find_matches(word_before_cursor,
                                                  schema_names,
                                                  meta='schema')
-                completions.extend(schema_names)
+                matches.extend(schema_names)
 
             elif suggestion['type'] == 'table':
                 tables = self.populate_schema_objects(
@@ -319,7 +329,7 @@ class PGCompleter(Completer):
 
                 tables = self.find_matches(word_before_cursor, tables,
                                            meta='table')
-                completions.extend(tables)
+                matches.extend(tables)
 
             elif suggestion['type'] == 'view':
                 views = self.populate_schema_objects(
@@ -331,28 +341,23 @@ class PGCompleter(Completer):
 
                 views = self.find_matches(word_before_cursor, views,
                                           meta='view')
-                completions.extend(views)
+                matches.extend(views)
 
             elif suggestion['type'] == 'alias':
                 aliases = suggestion['aliases']
                 aliases = self.find_matches(word_before_cursor, aliases,
                                             meta='table alias')
-                completions.extend(aliases)
+                matches.extend(aliases)
 
             elif suggestion['type'] == 'database':
                 dbs = self.find_matches(word_before_cursor, self.databases,
                                         meta='database')
-                completions.extend(dbs)
+                matches.extend(dbs)
 
             elif suggestion['type'] == 'keyword':
                 keywords = self.find_matches(word_before_cursor, self.keywords,
                                              mode='keyword', meta='keyword')
-                
-                # Sort keywords by how often user uses them
-                keywords = sorted(keywords, key=self._keyword_sort_key,
-                                  reverse=True)
-                
-                completions.extend(keywords)
+                matches.extend(keywords)
 
             elif suggestion['type'] == 'special':
                 if not self.pgspecial:
@@ -363,10 +368,10 @@ class PGCompleter(Completer):
                 desc = [commands[cmd].description for cmd in cmd_names]
 
                 special = self.find_matches(word_before_cursor, cmd_names,
-                                            start_only=True, mode='keyword',
+                                            mode='keyword',
                                             meta_collection=desc)
 
-                completions.extend(special)
+                matches.extend(special)
 
             elif suggestion['type'] == 'datatype':
                 # suggest custom datatypes
@@ -374,22 +379,26 @@ class PGCompleter(Completer):
                     suggestion['schema'], 'datatypes')
                 types = self.find_matches(word_before_cursor, types,
                                           meta='datatype')
-                completions.extend(types)
+                matches.extend(types)
 
                 if not suggestion['schema']:
                     # Also suggest hardcoded types
                     types = self.find_matches(word_before_cursor,
                                               self.datatypes, mode='keyword',
                                               meta='datatype')
-                    completions.extend(types)
+                    matches.extend(types)
 
             elif suggestion['type'] == 'namedquery':
                 queries = self.find_matches(
                     word_before_cursor, NamedQueries.instance.list(),
                     meta='named query')
-                completions.extend(queries)
+                matches.extend(queries)
 
-        return completions
+        # Sort matches so highest priorities are first
+        matches = sorted(matches, key=operator.attrgetter('priority'),
+                         reverse=True)
+        matches = [c.completion for c in matches]
+        return matches
 
     def populate_scoped_cols(self, scoped_tbls):
         """ Find all columns in a set of scoped_tables
@@ -511,8 +520,5 @@ class PGCompleter(Completer):
                                 for meta in metas
                                     if filter_func(meta)]
 
-    def _keyword_sort_key(self, keyword_completion):
-        keyword = keyword_completion.text
-        return self.prioritizer[keyword]
 
 
