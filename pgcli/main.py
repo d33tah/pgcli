@@ -8,8 +8,10 @@ import traceback
 import logging
 import threading
 import shutil
+import functools
 from time import time
 from codecs import open
+
 
 import click
 import sqlparse
@@ -103,12 +105,16 @@ class PGCli(object):
                               '\\c[onnect] database_name',
                               'Change to a new database.',
                               aliases=('use', '\\connect', 'USE'))
-        self.pgspecial.register(self.refresh_completions, '\\#', '\\#',
-                              'Refresh auto-completions.', arg_type=NO_QUERY)
-        self.pgspecial.register(self.refresh_completions, '\\refresh', '\\refresh',
-                              'Refresh auto-completions.', arg_type=NO_QUERY)
+
+        refresh_callback = lambda: self.refresh_completions(
+            persist_priorities='all')
+
+        self.pgspecial.register(refresh_callback, '\\#', '\\#',
+                                'Refresh auto-completions.', arg_type=NO_QUERY)
+        self.pgspecial.register(refresh_callback, '\\refresh', '\\refresh',
+                                'Refresh auto-completions.', arg_type=NO_QUERY)
         self.pgspecial.register(self.execute_from_file, '\\i', '\\i filename',
-                              'Execute commands from file.')
+                                'Execute commands from file.')
 
     def change_db(self, pattern, **_):
         if pattern:
@@ -296,7 +302,7 @@ class PGCli(object):
             self.cli = CommandLineInterface(application=application,
                                        eventloop=create_eventloop())
 
-        self.refresh_completions(history)
+        self.refresh_completions(history=history, persist_priorities='none')
 
         try:
             while True:
@@ -401,7 +407,10 @@ class PGCli(object):
 
                 # Refresh the table names and column names if necessary.
                 if need_completion_refresh(document.text):
-                    self.refresh_completions()
+                    if has_change_db_command(document.text):
+                        self.refresh_completions(persist_priorities='keywords')
+                    else:
+                        self.refresh_completions(persist_priorities='all')
 
                 # Refresh search_path to set default schema.
                 if need_search_path_refresh(document.text):
@@ -430,26 +439,37 @@ class PGCli(object):
 
         return less_opts
 
-    def refresh_completions(self, history=None):
+    def refresh_completions(self, history=None, persist_priorities='all'):
+        callback = functools.partial(self._on_completions_refreshed,
+                                     persist_priorities=persist_priorities)
         self.completion_refresher.refresh(
-            self.pgexecute, self.pgspecial, self._on_completions_refreshed,
-            history=history)
+            self.pgexecute, self.pgspecial, callback, history=history)
         return [(None, None, None,
                 'Auto-completion refresh started in the background.')]
 
-    def _on_completions_refreshed(self, new_completer):
-        self._swap_completer_objects(new_completer)
+    def _on_completions_refreshed(self, new_completer, persist_priorities):
+        self._swap_completer_objects(new_completer, persist_priorities)
 
         if self.cli:
             # After refreshing, redraw the CLI to clear the statusbar
             # "Refreshing completions..." indicator
             self.cli.request_redraw()
 
-    def _swap_completer_objects(self, new_completer):
+    def _swap_completer_objects(self, new_completer, persist_priorities):
         """Swap the completer object in cli with the newly created completer.
         """
         with self._completer_lock:
+            old_completer = self.completer
             self.completer = new_completer
+
+            if persist_priorities == 'all':
+                new_completer.prioritizer = old_completer.prioritizer
+            elif persist_priorities == 'keywords':
+                new_completer.prioritizer = old_completer.prioritizer
+                new_completer.prioritizer.clear_names()
+            elif persist_priorities == 'none':
+                pass
+
             # When pgcli is first launched we call refresh_completions before
             # instantiating the cli object. So it is necessary to check if cli
             # exists before trying the replace the completer object in cli.
@@ -545,6 +565,7 @@ def format_output(title, cur, headers, status, table_format, expanded=False, max
         output.append(status)
     return output
 
+
 def need_completion_refresh(queries):
     """Determines if the completion needs a refresh by checking if the sql
     statement is an alter, create, drop or change db."""
@@ -558,6 +579,19 @@ def need_completion_refresh(queries):
             return False
 
     return False
+
+
+def has_change_db_command(queries):
+    for query in sqlparse.split(queries):
+        try:
+            first_token = query.split()[0]
+            if first_token.lower() in ('use', '\\c', '\\connect'):
+                return True
+        except Exception:
+            return False
+
+    return False
+
 
 def need_search_path_refresh(sql):
     """Determines if the search_path should be refreshed by checking if the
