@@ -406,11 +406,10 @@ class PGCli(object):
                         print('Format Time: %0.03fs' % total)
 
                 # Refresh the table names and column names if necessary.
-                if need_completion_refresh(document.text):
-                    if has_change_db_command(document.text):
-                        self.refresh_completions(persist_priorities='keywords')
-                    else:
-                        self.refresh_completions(persist_priorities='all')
+                if has_change_db_command(document.text):
+                    self.refresh_completions(persist_priorities='keywords')
+                elif has_ddl_commannd(document.text):
+                    self.refresh_completions(persist_priorities='all')
 
                 # Refresh search_path to set default schema.
                 if need_search_path_refresh(document.text):
@@ -581,26 +580,22 @@ def format_output(title, cur, headers, status, table_format, expanded=False, max
     return output
 
 
-def need_completion_refresh(queries):
-    """Determines if the completion needs a refresh by checking if the sql
-    statement is an alter, create, drop or change db."""
-    for query in sqlparse.split(queries):
-        try:
-            first_token = query.split()[0]
-            if first_token.lower() in ('alter', 'create', 'use', '\\c',
-                    '\\connect', 'drop'):
-                return True
-        except Exception:
-            return False
-
-    return False
+def has_ddl_commannd(queries):
+    """Determines if the sql statement contains a DDL command like alter,
+       create, or drop"""
+    return _has_query_starting_with(queries, ('alter', 'create', 'drop'))
 
 
 def has_change_db_command(queries):
+    """Determines if the sql statement includes a change database command"""
+    return _has_query_starting_with(queries, ('use', '\\c', '\\connect'))
+
+
+def _has_query_starting_with(queries, search_tokens):
     for query in sqlparse.split(queries):
         try:
             first_token = query.split()[0]
-            if first_token.lower() in ('use', '\\c', '\\connect'):
+            if first_token.lower() in search_tokens:
                 return True
         except Exception:
             return False
