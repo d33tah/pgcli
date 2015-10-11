@@ -457,17 +457,32 @@ class PGCli(object):
 
     def _swap_completer_objects(self, new_completer, persist_priorities):
         """Swap the completer object in cli with the newly created completer.
+
+            persist_priorities is a string specifying how the old completer's
+            learned prioritizer should be transferred to the new completer.
+
+              'none'     - The new prioritizer is left in a new/clean state
+
+              'all'      - The new prioritizer is updated to exactly reflect
+                           the old one
+
+              'keywords' - The new prioritizer is updated with old keyword
+                           priorities, but not any other.
         """
         with self._completer_lock:
             old_completer = self.completer
             self.completer = new_completer
 
             if persist_priorities == 'all':
+                # Just swap over the entire prioritizer
                 new_completer.prioritizer = old_completer.prioritizer
             elif persist_priorities == 'keywords':
+                # Swap over the entire prioritizer, but clear name priorities,
+                # leaving learned keyword priorities alone
                 new_completer.prioritizer = old_completer.prioritizer
                 new_completer.prioritizer.clear_names()
             elif persist_priorities == 'none':
+                # Leave the new prioritizer as is
                 pass
 
             # When pgcli is first launched we call refresh_completions before
