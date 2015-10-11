@@ -176,7 +176,7 @@ class PGCompleter(Completer):
                            'datatypes': {}}
         self.all_completions = set(self.keywords + self.functions)
 
-    def find_matches(self, text, collection, mode='name',
+    def find_matches(self, text, collection, mode='fuzzy',
                      meta=None, meta_collection=None):
         """Find completion matches for the given text.
 
@@ -184,9 +184,9 @@ class PGCompleter(Completer):
         completions, find completions matching the last word of the
         text.
 
-        `mode` can be either 'name', or 'keyword'
-            'name': fuzzy matching
-            `keyword`: start only matching
+        `mode` can be either 'fuzzy', or 'strict'
+            'fuzzy': fuzzy matching, ties broken by name prevalance
+            `keyword`: start only matching, ties broken by keyword prevalance
 
         yields prompt_toolkit Completion instances for any matches found
         in the collection of available completions.
@@ -255,7 +255,7 @@ class PGCompleter(Completer):
         # 'word_before_cursor'.
         if not smart_completion:
             matches = self.find_matches(word_before_cursor, self.all_completions,
-                                        mode='keyword')
+                                        mode='strict')
             completions = [m.completion for m in matches]
             return sorted(completions, key=operator.attrgetter('text'))
 
@@ -268,7 +268,7 @@ class PGCompleter(Completer):
             # Map suggestion type to method
             # e.g. 'table' -> self.get_table_matches
             matcher = self.suggestion_matchers[suggestion['type']]
-            matches.extend(matcher(suggestion, word_before_cursor))
+            matches.extend(matcher(self, suggestion, word_before_cursor))
 
         # Sort matches so highest priorities are first
         matches = sorted(matches, key=operator.attrgetter('priority'),
@@ -308,7 +308,7 @@ class PGCompleter(Completer):
         if not suggestion['schema'] and 'filter' not in suggestion:
             # also suggest hardcoded functions using startswith matching
             predefined_funcs = self.find_matches(
-                word_before_cursor, self.functions, mode='keyword',
+                word_before_cursor, self.functions, mode='strict',
                 meta='function')
             funcs.extend(predefined_funcs)
 
@@ -355,7 +355,7 @@ class PGCompleter(Completer):
 
     def get_keyword_matches(self, _, word_before_cursor):
         return self.find_matches(word_before_cursor, self.keywords,
-                                 mode='keyword', meta='keyword')
+                                 mode='strict', meta='keyword')
 
     def get_special_matches(self, _, word_before_cursor):
         if not self.pgspecial:
@@ -364,7 +364,7 @@ class PGCompleter(Completer):
         commands = self.pgspecial.commands
         cmd_names = commands.keys()
         desc = [commands[cmd].description for cmd in cmd_names]
-        return self.find_matches(word_before_cursor, cmd_names, mode='keyword',
+        return self.find_matches(word_before_cursor, cmd_names, mode='strict',
                                  meta_collection=desc)
 
     def get_datatype_matches(self, suggestion, word_before_cursor):
@@ -375,7 +375,7 @@ class PGCompleter(Completer):
         if not suggestion['schema']:
             # Also suggest hardcoded types
             matches.extend(self.find_matches(word_before_cursor, self.datatypes,
-                                             mode='keyword', meta='datatype'))
+                                             mode='strict', meta='datatype'))
 
         return matches
 
