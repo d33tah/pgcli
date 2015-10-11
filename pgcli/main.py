@@ -408,7 +408,7 @@ class PGCli(object):
                 # Refresh the table names and column names if necessary.
                 if has_change_db_command(document.text):
                     self.refresh_completions(persist_priorities='keywords')
-                elif has_ddl_commannd(document.text):
+                elif has_ddl_command(document.text):
                     self.refresh_completions(persist_priorities='all')
 
                 # Refresh search_path to set default schema.
@@ -580,7 +580,7 @@ def format_output(title, cur, headers, status, table_format, expanded=False, max
     return output
 
 
-def has_ddl_commannd(queries):
+def has_ddl_command(queries):
     """Determines if the sql statement contains a DDL command like alter,
        create, or drop"""
     return _has_query_starting_with(queries, ('alter', 'create', 'drop'))
