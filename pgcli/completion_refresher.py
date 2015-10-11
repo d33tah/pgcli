@@ -72,8 +72,8 @@ class CompletionRefresher(object):
 
         # Load history into pgcompleter so it can learn user preferences
         n_max_recent = 100
-        n_recent = history and min(n_max_recent, len(history))
-        if n_recent:
+        n_recent = 100
+        if history:
             for recent in history[-n_recent:]:
                 completer.extend_query_history(recent, is_init=True)
 
