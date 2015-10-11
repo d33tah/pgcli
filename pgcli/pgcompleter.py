@@ -197,10 +197,10 @@ class PGCompleter(Completer):
 
         if mode == 'fuzzy':
             fuzzy = True
-            priority_func = lambda x: self.prioritizer.name_count(x)
+            priority_func = self.prioritizer.name_count
         else:
             fuzzy = False
-            priority_func = lambda x: self.prioritizer.keyword_count(x)
+            priority_func = self.prioritizer.keyword_count
             
         # Construct a `_match` function for either fuzzy or non-fuzzy matching
         # The match function returns a 2-tuple used for sorting the matches,
