@@ -49,20 +49,6 @@ class PGCompleter(Completer):
 
         self.all_completions = set(self.keywords + self.functions)
 
-        self.suggestion_matchers = {
-            'column': self.get_column_matches,
-            'function': self.get_function_matches,
-            'schema': self.get_schema_matches,
-            'table': self.get_table_matches,
-            'view': self.get_view_matches,
-            'alias': self.get_alias_matches,
-            'database': self.get_database_matches,
-            'keyword': self.get_keyword_matches,
-            'special': self.get_special_matches,
-            'datatype': self.get_datatype_matches,
-            'namedquery': self.get_namedquery_matches,
-        }
-
     def escape_name(self, name):
         if name and ((not self.name_pattern.match(name))
                 or (name.upper() in self.reserved_words)
@@ -209,7 +195,7 @@ class PGCompleter(Completer):
 
         text = last_word(text, include='most_punctuations').lower()
 
-        if mode == 'name':
+        if mode == 'fuzzy':
             fuzzy = True
             priority_func = lambda x: self.prioritizer.name_count(x)
         else:
@@ -396,6 +382,20 @@ class PGCompleter(Completer):
     def get_namedquery_matches(self, _, word_before_cursor):
         return self.find_matches(
             word_before_cursor, NamedQueries.instance.list(), meta='named query')
+
+    suggestion_matchers = {
+        'column': get_column_matches,
+        'function': get_function_matches,
+        'schema': get_schema_matches,
+        'table': get_table_matches,
+        'view': get_view_matches,
+        'alias': get_alias_matches,
+        'database': get_database_matches,
+        'keyword': get_keyword_matches,
+        'special': get_special_matches,
+        'datatype': get_datatype_matches,
+        'namedquery': get_namedquery_matches,
+    }
 
     def populate_scoped_cols(self, scoped_tbls):
         """ Find all columns in a set of scoped_tables
