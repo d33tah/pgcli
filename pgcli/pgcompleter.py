@@ -316,7 +316,7 @@ class PGCompleter(Completer):
 
         return funcs
 
-    def get_schema_matches(self, suggestion, word_before_cursor):
+    def get_schema_matches(self, _, word_before_cursor):
         schema_names = self.dbmetadata['tables'].keys()
 
         # Unless we're sure the user really wants them, hide schema names
