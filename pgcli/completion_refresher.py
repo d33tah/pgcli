@@ -71,7 +71,6 @@ class CompletionRefresher(object):
             continue
 
         # Load history into pgcompleter so it can learn user preferences
-        n_max_recent = 100
         n_recent = 100
         if history:
             for recent in history[-n_recent:]:
@@ -79,6 +78,7 @@ class CompletionRefresher(object):
 
         for callback in callbacks:
             callback(completer)
+
 
 def refresher(name, refreshers=CompletionRefresher.refreshers):
     """Decorator to populate the dictionary of refreshers with the current
